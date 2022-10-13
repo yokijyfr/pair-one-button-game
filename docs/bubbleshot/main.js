@@ -1,153 +1,124 @@
-title = "bubbleshot";
+title = "escapefrombombs";
 
 description = `
-[click] shot
+[click] turn
 `;
-characters = [];
+characters = [
+  `
+ l
+lll
+l l
+`,
+  `
+llllll
+ll l l
+ll l l
+llllll
+ l  l
+ l  l
+  `,
+  `
+llllll
+ll l l
+ll l l
+llllll
+ll  ll
+  `,
+];
 
 options = {
-  isDrawingScoreFront: true,
-  seed: 9,
+  theme: "dark",
+  seed: 8000,
+  viewSize: {x: 100, y: 130}
 };
 
-/** @type {{x: number, y: number, vx: number, bars: {width: number, color: Color}[]}[]} */
-let lanes;
-let laneY;
-let shotY;
-let hitColor;
-let laneCount;
-let baseMultiplier;
+/**
+ * @type {{
+ * from: Vector, to: Vector, vel: Vector,
+ * ticks: number, prevLine: any, isActive: boolean
+ * }[]}
+ */
+let lines;
+let activeTicks;
+/** @type {{x: number, vx: number}} */
+let player;
 let multiplier;
-let penalty;
-const colors = ["red", "green", "blue", "yellow"];
-const laneHeight = 7;
+
+/**
+ * @typedef {{
+ * pos: Vector,
+ * speed: number
+ * }} Star
+ */
+
+/**
+ * @type { Star [] }
+ */
+let stars;
+
+
 
 function update() {
   if (!ticks) {
-    lanes = [];
-    shotY = undefined;
-    hitColor = undefined;
-    laneCount = 2;
-    times(laneCount, () => addLane());
-    baseMultiplier = 0;
+    lines = [];
+    activeTicks = -1;
+    stars = [];
+    player = { x: 40, vx: 1 };
     multiplier = 1;
-    penalty = 1;
-  }
-  let sy = 97;
-  if (shotY != null) {
-    shotY -= sqrt(difficulty) * 3;
-    sy = shotY;
-  } else {
-    hitColor = undefined;
-    if (input.isJustPressed) {
-      play("laser");
-      multiplier = 1;
-      shotY = sy;
-      laneY += 2 * penalty * sqrt(sqrt(difficulty));
-    }
-  }
-  color(hitColor == null ? "black" : hitColor);
-  rect(49, sy, 3, 99 - sy);
-  const my = laneHeight * laneCount;
-  laneY += sqrt(difficulty) * 0.005;
-  if (laneY < my) {
-    laneY += (my - laneY) * 0.2;
-  }
-  let ly = laneY;
-  remove(lanes, (l) => {
-    l.x = wrap(l.x + l.vx, 0, 99);
-    l.y += (ly - l.y) * 0.2;
-    let x = l.x;
-    let isRemoved = false;
-    let isShotRemoved = false;
-    l.bars.forEach((b) => {
-      color(b.color);
-      let c;
-      if (x + b.width < 99) {
-        c = rect(x, l.y, b.width - 1, -laneHeight + 1).isColliding.rect;
-      } else {
-        c = rect(x, l.y, 99 - x, -laneHeight + 1).isColliding.rect;
-        c = {
-          ...c,
-          ...rect(0, l.y, b.width - (99 - x) - 1, -laneHeight + 1).isColliding
-            .rect,
-        };
-      }
-      if (c.black) {
-        hitColor = b.color;
-        isRemoved = true;
-      } else if (hitColor != null) {
-        if (c[b.color]) {
-          isRemoved = true;
-        } else if (c.red || c.green || c.blue || c.yellow) {
-          isShotRemoved = true;
-        }
-      }
-      x = wrap(x + b.width, 0, 99);
-    });
-    ly -= laneHeight;
-    if (isShotRemoved) {
-      play("hit");
-      shotY = undefined;
-      penalty = clamp(penalty * (3 / multiplier), 1, 4);
-    } else if (isRemoved) {
-      addScore(multiplier * pow(2, baseMultiplier), 50, l.y);
-      laneY -= multiplier;
-      multiplier *= 2;
-      return true;
-    }
+
+    stars = times(10, () => {
+      const posX = rnd(0, 100);
+      const posY = rnd(0, 130);
+      return {
+          pos: vec(posX, posY),
+          speed: rnd(0.2, 0.5)
+      };
   });
-  if (lanes.length === 0) {
-    shotY = undefined;
-    laneCount++;
-    if (laneCount > clamp(5 + baseMultiplier, 1, 10)) {
-      baseMultiplier = clamp(baseMultiplier + 1, 1, 9);
-      laneCount = 2;
-    }
-  }
-  if (shotY == null) {
-    times(laneCount - lanes.length, () => addLane());
-    if (shotY == null && lanes[0].y > 97) {
-      play("explosion");
-      end();
-    }
+
   }
 
-  function addLane() {
-    play("select");
-    const x = rnd(99);
-    const vx = rnds(0.5, 1) * sqrt(difficulty);
-    if (lanes.length === 0) {
-      laneY = 0;
-      lanes.push({ x, y: 0, vx, bars: addBars() });
-    } else {
-      lanes.push({
-        x,
-        y: -lanes.length * laneHeight,
-        vx,
-        bars: addBars(lanes[lanes.length - 1].bars),
-      });
-    }
-  }
+  stars.forEach((s) => {
+    s.pos.y += s.speed;
+    if (s.pos.y > 130) s.pos.y = 0;
 
-  function addBars(prevBars) {
-    let cs =
-      prevBars != null
-        ? prevBars.map((b) => b.color)
-        : [colors[rndi(colors.length)]];
-    if (cs.length === 1 || (cs.length < 4 && rnd() < 0.5)) {
-      cs.push(colors[rndi(colors.length)]);
-    } else {
-      cs.splice(rndi(colors.length), 1);
-    }
-    let lx = 99;
-    let x = rnd(99);
-    const cc = cs.length;
-    return cs.map((c, i) => {
-      const width = i === cc - 1 ? lx : (99 / cc) * rnd(0.8, 1.2);
-      lx -= width;
-      x = wrap(x + width, 0, 99);
-      return { x, width, color: c };
+    color("light_black");
+    box(s.pos, 1);
+});
+
+  if (lines.length === 0) {
+    const from = vec(rnd(30, 70), 0);
+    lines.push({
+      from,
+      to: vec(from),
+      vel: vec(0.5 * difficulty, 0).rotate(PI / 2),
+      ticks: ceil(30 / difficulty),
+      prevLine: undefined,
+      isActive: false,
     });
+  }
+
+
+
+  color("light_blue");
+  rect(0, 90, 100, 10);
+  activeTicks--;
+
+  if (
+    input.isJustPressed ||
+    (player.x < 0 && player.vx < 0) ||
+    (player.x > 99 && player.vx > 0)
+  ) {
+    play("laser");
+    player.vx *= -1;
+  }
+  player.x += player.vx * sqrt(difficulty);
+  color("black");
+  if (
+    char(addWithCharCode("b", floor(ticks / 10) % 2), player.x, 87, {
+      mirror: { x: player.vx > 0 ? 1 : -1 },
+    }).isColliding.rect.yellow
+  ) {
+    play("lucky");
+    end();
   }
 }
