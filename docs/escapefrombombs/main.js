@@ -81,8 +81,8 @@ function update() {
     s.pos.y += s.speed;
     if (s.pos.y > 130) s.pos.y = 0;
 
-    color("light_black");
-    box(s.pos, 1);
+    color("light_red");
+    box(s.pos, 4);
 });
 
   if (lines.length === 0) {
@@ -121,4 +121,5 @@ function update() {
     play("lucky");
     end();
   }
+
 }
